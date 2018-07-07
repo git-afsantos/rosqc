@@ -1,0 +1,26 @@
+<?xml version="1.0"?>
+<package>
+  <name>rosqc</name>
+  <version>0.0.1</version>
+  <description>
+    The rosqc package enables fuzzy and property-based testing of ROS nodes,
+    using Hypothesis for Python.
+  </description>
+
+  <maintainer email="andre@todo.todo">Andre Santos</maintainer>
+
+  <license>MIT</license>
+
+  <author email="andre@todo.com">Andre Santos</author>
+
+
+  <buildtool_depend>catkin</buildtool_depend>
+
+  <build_depend>rosnode</build_depend>
+  <build_depend>rospy</build_depend>
+
+  <run_depend>rosnode</run_depend>
+  <run_depend>rospy</run_depend>
+
+  <export></export>
+</package>
