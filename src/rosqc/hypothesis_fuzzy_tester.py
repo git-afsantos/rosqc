@@ -328,6 +328,7 @@ class RosFuzzyTester(RuleBasedStateMachine):
     @rule()
     def spin(self):
         rospy.sleep(self.sleep_duration)
+        self._check_nodes()
         self.ros.process_inbox()
         self.did_spin = True
 
@@ -372,6 +373,10 @@ class RosFuzzyTester(RuleBasedStateMachine):
             now = rospy.get_rostime()
         if pending and online:
             raise LookupError("Failed to find nodes " + str(pending))
+
+    def _check_nodes(self):
+        for node_name in self.cfg.nodes_under_test:
+            assert rosnode_ping(node_name, max_count=1)
 
     @staticmethod
     def _gen_publish(topic, name):
