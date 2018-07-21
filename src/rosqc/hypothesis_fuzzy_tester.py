@@ -290,12 +290,17 @@ class RosInterface(object):
 
 
 ###############################################################################
-# Fuzzy Tester
+# Random Tester
 ###############################################################################
 
-class RosFuzzyTester(RuleBasedStateMachine):
+class RosRandomTester(RuleBasedStateMachine):
+    _time_spent_on_testing = 0.0
+    _time_spent_sleeping = 0.0
+    _time_spent_setting_up = 0.0
+
     def __init__(self):
         RuleBasedStateMachine.__init__(self)
+        t = rospy.get_rostime()
         self.cfg = TestSettings._current
         self.sleep_duration = rospy.Duration(1.0 / self.cfg.expected_rate)
         self.can_spin = False
@@ -307,17 +312,28 @@ class RosFuzzyTester(RuleBasedStateMachine):
         self.ros.wait_for_interfaces()
         if not self.cfg.on_setup is None:
             self.cfg.on_setup()
+        self._start_time = rospy.get_rostime()
+        t = self._start_time - t
+        RosRandomTester._time_spent_setting_up += t.to_sec()
+        self._spin_count = 0
 
     def teardown(self):
         try:
             self._last_spin()
         finally:
+            s = self._spin_count * self.sleep_duration.to_sec()
+            t0 = rospy.get_rostime()
+            t = t0 - self._start_time
+            RosRandomTester._time_spent_sleeping += s
+            RosRandomTester._time_spent_on_testing += t.to_sec() - s
             if not self.cfg.on_teardown is None:
                 self.cfg.on_teardown()
             for launch in self.launches:
                 launch.shutdown()
             self.ros.shutdown()
             self._wait_for_nodes(online=False)
+            t = rospy.get_rostime() - t0
+            RosRandomTester._time_spent_setting_up += t.to_sec()
 
     def print_end(self):
         if not self.did_spin:
@@ -327,6 +343,7 @@ class RosFuzzyTester(RuleBasedStateMachine):
     @precondition(lambda self: not rospy.is_shutdown() and self.can_spin)
     @rule()
     def spin(self):
+        self._spin_count += 1
         rospy.sleep(self.sleep_duration)
         self._check_nodes()
         self.ros.process_inbox()
@@ -334,6 +351,7 @@ class RosFuzzyTester(RuleBasedStateMachine):
 
     def _last_spin(self):
         if not rospy.is_shutdown() and not self.did_spin:
+            self._spin_count += 1
             rospy.sleep(self.sleep_duration)
             self.ros.process_inbox()
             for node_name in self.cfg.nodes_under_test:
@@ -391,14 +409,20 @@ class RosFuzzyTester(RuleBasedStateMachine):
     def gen_rules(cls, cfg):
         for topic, properties in cfg.subscribers.iteritems():
             rule_name = "pub" + topic.replace("/", "__")
-            method = RosFuzzyTester._gen_publish(topic, rule_name)
+            method = RosRandomTester._gen_publish(topic, rule_name)
             pre_wrapper = precondition(cls._rule_precondition)
             rule_wrapper = rule(msg=properties._strategy())
             method = pre_wrapper(rule_wrapper(method))
             method.__name__ = rule_name
             setattr(cls, rule_name, method)
 
-FuzzyTest = RosFuzzyTester.TestCase
+    @classmethod
+    def print_times(cls):
+        print "Time spent on testing  (s):", cls._time_spent_on_testing
+        print "Time spent on sleeping (s):", cls._time_spent_sleeping
+        print "Time spent setting up  (s):", cls._time_spent_setting_up
+
+RandomTest = RosRandomTester.TestCase
 
 
 ###############################################################################
@@ -409,8 +433,8 @@ def run_tests(settings):
     if not isinstance(settings, TestSettings):
         raise ValueError("settings must be of type TestSettings")
     TestSettings._current = settings
-    RosFuzzyTester.gen_rules(settings)
-    RosFuzzyTester.settings = hypothesis.settings(max_examples=1000,
+    RosRandomTester.gen_rules(settings)
+    RosRandomTester.settings = hypothesis.settings(max_examples=1000,
                                                   stateful_step_count=100,
                                                   buffer_size=16384)
     collector = OutputCollector()
@@ -418,3 +442,4 @@ def run_tests(settings):
     with HiddenPrints():
         unittest.main(module=__name__, argv=[__name__], exit=False)
     collector.print_output()
+    RosRandomTester.print_times()
