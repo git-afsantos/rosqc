@@ -435,8 +435,9 @@ def run_tests(settings):
     TestSettings._current = settings
     RosRandomTester.gen_rules(settings)
     RosRandomTester.settings = hypothesis.settings(max_examples=1000,
-                                                  stateful_step_count=100,
-                                                  buffer_size=16384)
+                                                   stateful_step_count=100,
+                                                   buffer_size=16384,
+                                                   timeout=hypothesis.unlimited)
     collector = OutputCollector()
     reporting.reporter.value = collector.report
     with HiddenPrints():
